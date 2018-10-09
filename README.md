@@ -19,6 +19,12 @@ Steps to use:
 
 1.  Copy the HTML (in Safari, it only worked from the "Elements" tab of the dev tools; not by saving the page)
     and paste into `sessions.html` in the same folder as this script.
+
+1.  Install node modules
+
+    ```bash
+    npm install
+    ```
     
 1.  Execute the script to generate the `sessions.ics` file.
 
