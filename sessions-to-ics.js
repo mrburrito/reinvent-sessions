@@ -68,5 +68,6 @@ ics.createEvents(events, (err, icsEvents) => {
     throw err;
   } else {
     fs.writeFileSync(`${__dirname}/sessions.ics`, icsEvents);
+    console.log(`Wrote ${events.length} events to ${__dirname}/sessions.ics`);
   }
 });
