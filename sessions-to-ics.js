@@ -27,7 +27,7 @@ function extractTimeDetails(text) {
 
   const durationInMin = (endDate - startDate) / 60000;
   return {
-    start: [startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), startDate.getHours(), startDate.getMinutes()],
+    start: [startDate.getFullYear(), startDate.getMonth()+1, startDate.getDate(), startDate.getHours(), startDate.getMinutes()],
     duration: {hours: Math.floor(durationInMin / 60), minutes: durationInMin % 60},
   };
 }
