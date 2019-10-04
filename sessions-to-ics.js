@@ -6,7 +6,7 @@ const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
   normalizeWhitespace: true,
 });
 
-const timeRx = /(Mon|Tues|Wednes|Thurs|Fri)day, Nov (\d{2}), (\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
+const timeRx = /(Mon|Tues|Wednes|Thurs|Fri)day, Dec (\d{1,2}), (\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
 
 function extractTimeDetails(text) {
   function normalizeHour(hour, ap) {
@@ -22,8 +22,8 @@ function extractTimeDetails(text) {
   const endMin = +match[7];
   const endAp = match[8];
 
-  const startDate = new Date(2018, 11, date, normalizeHour(startHour, startAp), startMin);
-  const endDate = new Date(2018, 11, date, normalizeHour(endHour, endAp), endMin);
+  const startDate = new Date(2019, 11, date, normalizeHour(startHour, startAp), startMin);
+  const endDate = new Date(2019, 11, date, normalizeHour(endHour, endAp), endMin);
 
   const durationInMin = (endDate - startDate) / 60000;
   return {
