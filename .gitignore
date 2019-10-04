@@ -75,6 +75,6 @@ typings/
 .serverless
 
 sessions.html
-sessions.ics
+*.ics
 .idea/
 *.iml
