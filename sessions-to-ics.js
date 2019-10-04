@@ -55,19 +55,37 @@ function toIcs(row) {
   return event;
 }
 
-const events = [];
+function toNormalizedType(row) {
+  const type = $(".type", row).text();
+  return type.toLowerCase().replace(/ +/, '-');
+}
+
+const events = {};
 $(".sessionRow").each((idx, row) => {
   const event = toIcs(row);
   if (event) {
-    events.push(event);
+    const eventType = toNormalizedType(row);
+    if (!events.hasOwnProperty(eventType)) {
+      events[eventType] = []
+    }
+    events[eventType].push(event);
   }
 });
 
-ics.createEvents(events, (err, icsEvents) => {
-  if (err) {
-    throw err;
-  } else {
-    fs.writeFileSync(`${__dirname}/sessions.ics`, icsEvents);
-    console.log(`Wrote ${events.length} events to ${__dirname}/sessions.ics`);
-  }
-});
+function writeEvents(eventList, filename) {
+  ics.createEvents(eventList, (err, icsEvents) => {
+    if (err) {
+      throw err;
+    } else {
+      fs.writeFileSync(`${__dirname}/${filename}.ics`, icsEvents);
+      console.log(`Wrote ${eventList.length} events to ${__dirname}/${filename}.ics`);
+    }
+  });
+}
+
+let allEvents = [];
+for (const eventType in events) {
+  allEvents = allEvents.concat(events[eventType]);
+  writeEvents(events[eventType], `${eventType}s`);
+}
+writeEvents(allEvents, 'all-sessions');
