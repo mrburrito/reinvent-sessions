@@ -1,34 +1,43 @@
 const cheerio = require("cheerio");
 const fs = require("fs");
 const ics = require("ics");
+const { DateTime } = require("luxon");
 
 const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
   normalizeWhitespace: true,
 });
 
-const timeRx = /(Mon|Tues|Wednes|Thurs|Fri)day, Dec (\d{1,2}), (\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
+const timeRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (Dec) (\d{1,2}), (\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
 
 function extractTimeDetails(text) {
   function normalizeHour(hour, ap) {
     return (hour % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
   }
 
+  function vegasDate(mon, dt, hour, ap, min)  {
+    return DateTime.local(2019, mon, dt, normalizeHour(hour, ap), min)
+        .setZone('America/Los_Angeles', {keepLocalTime: true})
+        .setZone('UTC');
+  }
+
   const match = timeRx.exec(text);
-  const date = +match[2];
-  const startHour = +match[3];
-  const startMin = +match[4];
-  const startAp = match[5];
-  const endHour = +match[6];
-  const endMin = +match[7];
-  const endAp = match[8];
+  const monthName = match[2].toLowerCase();
+  const month = monthName === "nov" ? 11 : 12;
+  const date = +match[3];
+  const startHour = +match[4];
+  const startMin = +match[5];
+  const startAp = match[6];
+  const endHour = +match[7];
+  const endMin = +match[8];
+  const endAp = match[9];
 
-  const startDate = new Date(2019, 11, date, normalizeHour(startHour, startAp), startMin);
-  const endDate = new Date(2019, 11, date, normalizeHour(endHour, endAp), endMin);
+  const startDate = vegasDate(month, date, startHour, startAp, startMin);
+  const endDate = vegasDate(month, date, endHour, endAp, endMin);
 
-  const durationInMin = (endDate - startDate) / 60000;
+  const duration = endDate.diff(startDate, ['hours','minutes']);
   return {
-    start: [startDate.getFullYear(), startDate.getMonth()+1, startDate.getDate(), startDate.getHours(), startDate.getMinutes()],
-    duration: {hours: Math.floor(durationInMin / 60), minutes: durationInMin % 60},
+    start: [startDate.year, startDate.month, startDate.day, startDate.hour, startDate.minute],
+    duration: {hours: duration.hours, minutes: duration.minutes},
   };
 }
 
@@ -47,6 +56,7 @@ function toIcs(row) {
 
   const event = {
     start: timeDetails.start,
+    startInputType: "utc",
     duration: timeDetails.duration,
     location: $(".sessionRoom", row).text().replace(/^[^A-Za-z]*/g, ""),
     title: $(".openInPopup span", row).text(),
