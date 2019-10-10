@@ -9,7 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cheerio": "^1.0.0-rc.2",
-    "ics": "^2.7.2"
+    "cheerio": "^1.0.0-rc.3",
+    "ics": "^2.18.0",
+    "luxon": "^1.19.3"
   }
 }
