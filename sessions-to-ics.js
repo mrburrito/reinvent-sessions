@@ -108,7 +108,6 @@ $(".awsui-util-mb-xl").each((idx, row) => {
 });
 
 function writeEvents(eventList, filename) {
-    console.debug(eventList)
     ics.createEvents(eventList, (err, icsEvents) => {
         if (err) {
             throw err;
