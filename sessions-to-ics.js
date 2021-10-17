@@ -7,8 +7,9 @@ const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
     normalizeWhitespace: true,
 });
 
+const year = DateTime.now().year;
 const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
-const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
+const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d{1,2}):(\d{2}) (AM|PM)/;
 
 function extractTimeDetails(sessionProps) {
     function normalizeHour(hour, ap) {
@@ -16,7 +17,7 @@ function extractTimeDetails(sessionProps) {
     }
 
     function vegasDate(mon, dt, hour, ap, min) {
-        return DateTime.local(DateTime.year, mon, dt, normalizeHour(hour, ap), min)
+        return DateTime.local(year, mon, dt, normalizeHour(hour, ap), min)
             .setZone('America/Los_Angeles', { keepLocalTime: true })
             .setZone('UTC');
     }
@@ -62,6 +63,11 @@ function extractSessionProps(sessionContainer) {
     return sessionInfo;
 }
 
+function extractNormalizedSessionType(sessionProps) {
+    const sessionType = sessionProps["Session type"];
+    return sessionType.toLowerCase().replace(/[^a-z]+/, '-');
+}
+
 function toIcs(sessionContainer) {
     const sessionProps = extractSessionProps(sessionContainer)
     let timeDetails = {};
@@ -72,7 +78,7 @@ function toIcs(sessionContainer) {
         console.log($(sessionContainer).html());
         return undefined;
     }
-    const sessionType = sessionProps["Session type"];
+    const sessionType = extractNormalizedSessionType(sessionProps);
     const description = extractDescription(sessionContainer);
 
     const event = {
@@ -88,7 +94,7 @@ function toIcs(sessionContainer) {
 }
 
 const events = {};
-$(".awsui-grid").each((idx, row) => {
+$(".awsui-util-mb-xl").each((idx, row) => {
     const event = toIcs(row);
     if (event) {
         if (!events.hasOwnProperty(event.sessionType)) {
@@ -100,7 +106,7 @@ $(".awsui-grid").each((idx, row) => {
 });
 
 function writeEvents(eventList, filename) {
-    console.log(eventList)
+    // console.log(eventList);
     ics.createEvents(eventList, (err, icsEvents) => {
         if (err) {
             throw err;
