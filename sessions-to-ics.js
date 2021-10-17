@@ -8,7 +8,7 @@ const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
 });
 
 const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
-const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
+const timeRx = /(\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
 
 function extractTimeDetails(sessionProps) {
     function normalizeHour(hour, ap) {
@@ -16,7 +16,7 @@ function extractTimeDetails(sessionProps) {
     }
 
     function vegasDate(mon, dt, hour, ap, min) {
-        return DateTime.local(DateTime.year, mon, dt, normalizeHour(hour, ap), min)
+        return DateTime.local(DateTime.now().year, mon, dt, normalizeHour(hour, ap), min)
             .setZone('America/Los_Angeles', { keepLocalTime: true })
             .setZone('UTC');
     }
@@ -45,14 +45,15 @@ function extractTimeDetails(sessionProps) {
 }
 
 function extractTitle(sessionContainer) {
-    const titleAndCode = $(".awsui-util-mt-m > div", sessionContainer);
-    const title = $(titleAndCode[0]).text();
-    const code = $(titleAndCode[1]).text();
-    return `[${code}] ${title}`;
+    const [titleNode, codeNode] = $(".awsui-util-mt-m > div", sessionContainer);
+    const title = $(titleNode).text();
+    const code = $(codeNode.firstChild).text();
+    const extra = codeNode.lastChild != codeNode.firstChild ? ` ${$(codeNode.lastChild).text()}` : ""
+    return `${title} [${code}${extra}]`;
 }
 
 function extractDescription(sessionContainer) {
-    return $('.sanitized-html', sessionContainer).html();
+    return $('.sanitized-html', sessionContainer).html().replace(/\s\s+/g, " ");
 }
 
 function extractSessionProps(sessionContainer) {
@@ -81,21 +82,19 @@ function toIcs(sessionContainer) {
         duration: timeDetails.duration,
         location: sessionProps["Location"],
         title: extractTitle(sessionContainer),
-        description: `${sessionType}\n\n${description}`,
-        sessionType: sessionType
+        description: `${sessionType}\n\n${description}`
     };
-    return event;
+    return { sessionType, event };
 }
 
 const events = {};
-$(".awsui-grid").each((idx, row) => {
-    const event = toIcs(row);
+$(".awsui-util-mb-xl").each((idx, row) => {
+    const { sessionType, event } = toIcs(row);
     if (event) {
-        if (!events.hasOwnProperty(event.sessionType)) {
-            events[event.sessionType] = []
+        if (!events.hasOwnProperty(sessionType)) {
+            events[sessionType] = []
         }
-        events[event.sessionType].push(event);
-        delete event.sessionType
+        events[sessionType].push(event);
     }
 });
 
