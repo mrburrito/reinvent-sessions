@@ -46,14 +46,15 @@ function extractTimeDetails(sessionProps) {
 }
 
 function extractTitle(sessionContainer) {
-    const titleAndCode = $(".awsui-util-mt-m > div", sessionContainer);
-    const title = $(titleAndCode[0]).text();
-    const code = $(titleAndCode[1]).text();
-    return `[${code}] ${title}`;
+    const [titleNode, codeNode] = $(".awsui-util-mt-m > div", sessionContainer);
+    const title = $(titleNode).text();
+    const code = $(codeNode.firstChild).text();
+    const extra = codeNode.lastChild !== codeNode.firstChild ? ` ${$(codeNode.lastChild).text()}` : ""
+    return `${title} [${code}${extra}]`;
 }
 
 function extractDescription(sessionContainer) {
-    return $('.sanitized-html', sessionContainer).html();
+    return $('.sanitized-html', sessionContainer).html().replace(/\s\s+/g, " ");
 }
 
 function extractSessionProps(sessionContainer) {
@@ -81,7 +82,7 @@ function toIcs(sessionContainer) {
         // console.debug(err);
         // console.debug($(sessionContainer).html());
         console.warn(`Unable to extract schedule for session: ${title}`);
-        return undefined;
+        return { undefined, undefined };
     }
 
     const event = {
@@ -90,21 +91,19 @@ function toIcs(sessionContainer) {
         duration: timeDetails.duration,
         location: sessionProps["Location"],
         title: title,
-        description: `${sessionType}\n\n${description}`,
-        sessionType: sessionType
+        description: `${sessionType}\n\n${description}`
     };
-    return event;
+    return { sessionType, event };
 }
 
 const events = {};
 $(".awsui-util-mb-xl").each((idx, row) => {
-    const event = toIcs(row);
+    const { sessionType, event } = toIcs(row);
     if (event) {
-        if (!events.hasOwnProperty(event.sessionType)) {
-            events[event.sessionType] = []
+        if (!events.hasOwnProperty(sessionType)) {
+            events[sessionType] = []
         }
-        events[event.sessionType].push(event);
-        delete event.sessionType
+        events[sessionType].push(event);
     }
 });
 
