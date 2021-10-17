@@ -4,98 +4,116 @@ const ics = require("ics");
 const { DateTime } = require("luxon");
 
 const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
-  normalizeWhitespace: true,
+    normalizeWhitespace: true,
 });
 
-const timeRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (Dec) (\d{1,2}), (\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
+const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
+const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
 
-function extractTimeDetails(text) {
-  function normalizeHour(hour, ap) {
-    return (hour % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
-  }
+function extractTimeDetails(sessionProps) {
+    function normalizeHour(hour, ap) {
+        return (hour % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
+    }
 
-  function vegasDate(mon, dt, hour, ap, min)  {
-    return DateTime.local(2019, mon, dt, normalizeHour(hour, ap), min)
-        .setZone('America/Los_Angeles', {keepLocalTime: true})
-        .setZone('UTC');
-  }
+    function vegasDate(mon, dt, hour, ap, min) {
+        return DateTime.local(DateTime.year, mon, dt, normalizeHour(hour, ap), min)
+            .setZone('America/Los_Angeles', { keepLocalTime: true })
+            .setZone('UTC');
+    }
 
-  const match = timeRx.exec(text);
-  const monthName = match[2].toLowerCase();
-  const month = monthName === "nov" ? 11 : 12;
-  const date = +match[3];
-  const startHour = +match[4];
-  const startMin = +match[5];
-  const startAp = match[6];
-  const endHour = +match[7];
-  const endMin = +match[8];
-  const endAp = match[9];
+    const matchDate = dateRx.exec(sessionProps["Date"]);
+    const monthName = matchDate[2].toLowerCase();
+    const month = monthName === "november" ? 11 : 12;
+    const date = +matchDate[3];
 
-  const startDate = vegasDate(month, date, startHour, startAp, startMin);
-  const endDate = vegasDate(month, date, endHour, endAp, endMin);
+    const matchTime = timeRx.exec(sessionProps["Time"]);
+    const startHour = +matchTime[1];
+    const startMin = +matchTime[2];
+    const startAp = matchTime[3];
+    const endHour = +matchTime[4];
+    const endMin = +matchTime[5];
+    const endAp = matchTime[6];
 
-  const duration = endDate.diff(startDate, ['hours','minutes']);
-  return {
-    start: [startDate.year, startDate.month, startDate.day, startDate.hour, startDate.minute],
-    duration: {hours: duration.hours, minutes: duration.minutes},
-  };
+    const startDate = vegasDate(month, date, startHour, startAp, startMin);
+    const endDate = vegasDate(month, date, endHour, endAp, endMin);
+
+    const duration = endDate.diff(startDate, ['hours', 'minutes']);
+    return {
+        start: [startDate.year, startDate.month, startDate.day, startDate.hour, startDate.minute],
+        duration: { hours: duration.hours, minutes: duration.minutes },
+    };
 }
 
-function toIcs(row) {
-  let timeDetails = {};
-  try {
-    timeDetails = extractTimeDetails($(".sessionTimeList", row).html());
-  } catch (err) {
-    console.log(err);
-    console.log($(row).html());
-    return undefined;
-  }
-  const type = $(".type", row).text();
-  let description = $(".abstract", row).html();
-  description = description.substring(0, description.indexOf(" <a"));
-
-  const event = {
-    start: timeDetails.start,
-    startInputType: "utc",
-    duration: timeDetails.duration,
-    location: $(".sessionRoom", row).text().replace(/^[^A-Za-z]*/g, ""),
-    title: $(".openInPopup span", row).text(),
-    description: `${type}\n\n${description}`,
-  };
-  return event;
+function extractTitle(sessionContainer) {
+    const titleAndCode = $(".awsui-util-mt-m > div", sessionContainer);
+    const title = $(titleAndCode[0]).text();
+    const code = $(titleAndCode[1]).text();
+    return `[${code}] ${title}`;
 }
 
-function toNormalizedType(row) {
-  const type = $(".type", row).text();
-  return type.toLowerCase().replace(/ +/, '-');
+function extractDescription(sessionContainer) {
+    return $('.sanitized-html', sessionContainer).html();
+}
+
+function extractSessionProps(sessionContainer) {
+    const sessionInfoElements = $('.awsui-util-mr-xs', sessionContainer);
+    const sessionInfo = {};
+    sessionInfoElements.each((idx, n) => { sessionInfo[$(n.parent.children[0]).text().replace(":", "")] = $(n.parent.children[1]).text() });
+    return sessionInfo;
+}
+
+function toIcs(sessionContainer) {
+    const sessionProps = extractSessionProps(sessionContainer)
+    let timeDetails = {};
+    try {
+        timeDetails = extractTimeDetails(sessionProps);
+    } catch (err) {
+        console.log(err);
+        console.log($(sessionContainer).html());
+        return undefined;
+    }
+    const sessionType = sessionProps["Session type"];
+    const description = extractDescription(sessionContainer);
+
+    const event = {
+        start: timeDetails.start,
+        startInputType: "utc",
+        duration: timeDetails.duration,
+        location: sessionProps["Location"],
+        title: extractTitle(sessionContainer),
+        description: `${sessionType}\n\n${description}`,
+        sessionType: sessionType
+    };
+    return event;
 }
 
 const events = {};
-$(".sessionRow").each((idx, row) => {
-  const event = toIcs(row);
-  if (event) {
-    const eventType = toNormalizedType(row);
-    if (!events.hasOwnProperty(eventType)) {
-      events[eventType] = []
+$(".awsui-grid").each((idx, row) => {
+    const event = toIcs(row);
+    if (event) {
+        if (!events.hasOwnProperty(event.sessionType)) {
+            events[event.sessionType] = []
+        }
+        events[event.sessionType].push(event);
+        delete event.sessionType
     }
-    events[eventType].push(event);
-  }
 });
 
 function writeEvents(eventList, filename) {
-  ics.createEvents(eventList, (err, icsEvents) => {
-    if (err) {
-      throw err;
-    } else {
-      fs.writeFileSync(`${__dirname}/${filename}.ics`, icsEvents);
-      console.log(`Wrote ${eventList.length} events to ${__dirname}/${filename}.ics`);
-    }
-  });
+    console.log(eventList)
+    ics.createEvents(eventList, (err, icsEvents) => {
+        if (err) {
+            throw err;
+        } else {
+            fs.writeFileSync(`${__dirname}/${filename}.ics`, icsEvents);
+            console.log(`Wrote ${eventList.length} events to ${__dirname}/${filename}.ics`);
+        }
+    });
 }
 
 let allEvents = [];
 for (const eventType in events) {
-  allEvents = allEvents.concat(events[eventType]);
-  writeEvents(events[eventType], `${eventType}s`);
+    allEvents = allEvents.concat(events[eventType]);
+    writeEvents(events[eventType], `${eventType}s`);
 }
 writeEvents(allEvents, 'all-sessions');
