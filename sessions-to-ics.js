@@ -82,7 +82,7 @@ function toIcs(sessionContainer) {
         // console.debug(err);
         // console.debug($(sessionContainer).html());
         console.warn(`Unable to extract schedule for session: ${title}`);
-        return undefined;
+        return { undefined, undefined };
     }
 
     const event = {
