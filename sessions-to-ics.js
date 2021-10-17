@@ -7,8 +7,9 @@ const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
     normalizeWhitespace: true,
 });
 
+const year = DateTime.now().year;
 const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
-const timeRx = /(\d\d?):(\d{2}) (AM|PM) - (\d\d?):(\d{2}) (AM|PM)/;
+const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d{1,2}):(\d{2}) (AM|PM)/;
 
 function extractTimeDetails(sessionProps) {
     function normalizeHour(hour, ap) {
@@ -16,7 +17,7 @@ function extractTimeDetails(sessionProps) {
     }
 
     function vegasDate(mon, dt, hour, ap, min) {
-        return DateTime.local(DateTime.now().year, mon, dt, normalizeHour(hour, ap), min)
+        return DateTime.local(year, mon, dt, normalizeHour(hour, ap), min)
             .setZone('America/Los_Angeles', { keepLocalTime: true })
             .setZone('UTC');
     }
@@ -48,7 +49,7 @@ function extractTitle(sessionContainer) {
     const [titleNode, codeNode] = $(".awsui-util-mt-m > div", sessionContainer);
     const title = $(titleNode).text();
     const code = $(codeNode.firstChild).text();
-    const extra = codeNode.lastChild != codeNode.firstChild ? ` ${$(codeNode.lastChild).text()}` : ""
+    const extra = codeNode.lastChild !== codeNode.firstChild ? ` ${$(codeNode.lastChild).text()}` : ""
     return `${title} [${code}${extra}]`;
 }
 
@@ -63,25 +64,33 @@ function extractSessionProps(sessionContainer) {
     return sessionInfo;
 }
 
+function extractNormalizedSessionType(sessionProps) {
+    const sessionType = sessionProps["Session type"];
+    return sessionType.toLowerCase().replace(/[^a-z]+/, '-');
+}
+
 function toIcs(sessionContainer) {
     const sessionProps = extractSessionProps(sessionContainer)
+    const title = extractTitle(sessionContainer);
+    const sessionType = extractNormalizedSessionType(sessionProps);
+    const description = extractDescription(sessionContainer);
+
     let timeDetails = {};
     try {
         timeDetails = extractTimeDetails(sessionProps);
     } catch (err) {
-        console.log(err);
-        console.log($(sessionContainer).html());
+        // console.debug(err);
+        // console.debug($(sessionContainer).html());
+        console.warn(`Unable to extract schedule for session: ${title}`);
         return undefined;
     }
-    const sessionType = sessionProps["Session type"];
-    const description = extractDescription(sessionContainer);
 
     const event = {
         start: timeDetails.start,
         startInputType: "utc",
         duration: timeDetails.duration,
         location: sessionProps["Location"],
-        title: extractTitle(sessionContainer),
+        title: title,
         description: `${sessionType}\n\n${description}`
     };
     return { sessionType, event };
@@ -99,7 +108,7 @@ $(".awsui-util-mb-xl").each((idx, row) => {
 });
 
 function writeEvents(eventList, filename) {
-    console.log(eventList)
+    console.debug(eventList)
     ics.createEvents(eventList, (err, icsEvents) => {
         if (err) {
             throw err;
