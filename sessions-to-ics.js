@@ -70,23 +70,26 @@ function extractNormalizedSessionType(sessionProps) {
 
 function toIcs(sessionContainer) {
     const sessionProps = extractSessionProps(sessionContainer)
+    const title = extractTitle(sessionContainer);
+    const sessionType = extractNormalizedSessionType(sessionProps);
+    const description = extractDescription(sessionContainer);
+
     let timeDetails = {};
     try {
         timeDetails = extractTimeDetails(sessionProps);
     } catch (err) {
-        console.log(err);
-        console.log($(sessionContainer).html());
+        // console.debug(err);
+        // console.debug($(sessionContainer).html());
+        console.warn(`Unable to extract schedule for session: ${title}`);
         return undefined;
     }
-    const sessionType = extractNormalizedSessionType(sessionProps);
-    const description = extractDescription(sessionContainer);
 
     const event = {
         start: timeDetails.start,
         startInputType: "utc",
         duration: timeDetails.duration,
         location: sessionProps["Location"],
-        title: extractTitle(sessionContainer),
+        title: title,
         description: `${sessionType}\n\n${description}`,
         sessionType: sessionType
     };
