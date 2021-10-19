@@ -74,7 +74,7 @@ typings/
 # Serverless directories
 .serverless
 
-sessions.html
+*.html
 *.ics
 .idea/
 *.iml

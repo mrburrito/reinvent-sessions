@@ -2,10 +2,7 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const ics = require("ics");
 const { DateTime } = require("luxon");
-
-const $ = cheerio.load(fs.readFileSync("./sessions.html"), {
-    normalizeWhitespace: true,
-});
+const { program } = require('commander');
 
 const year = DateTime.now().year;
 const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
@@ -45,7 +42,7 @@ function extractTimeDetails(sessionProps) {
     };
 }
 
-function extractTitle(sessionContainer) {
+function extractTitle($, sessionContainer) {
     const [titleNode, codeNode] = $(".awsui-util-mt-m > div", sessionContainer);
     const title = $(titleNode).text();
     const code = $(codeNode.firstChild).text();
@@ -53,27 +50,26 @@ function extractTitle(sessionContainer) {
     return `${title} [${code}${extra}]`;
 }
 
-function extractDescription(sessionContainer) {
+function extractDescription($, sessionContainer) {
     return $('.sanitized-html', sessionContainer).html().replace(/\s\s+/g, " ");
 }
 
-function extractSessionProps(sessionContainer) {
+function extractSessionProps($, sessionContainer) {
     const sessionInfoElements = $('.awsui-util-mr-xs', sessionContainer);
     const sessionInfo = {};
     sessionInfoElements.each((idx, n) => { sessionInfo[$(n.parent.children[0]).text().replace(":", "")] = $(n.parent.children[1]).text() });
     return sessionInfo;
 }
 
-function extractNormalizedSessionType(sessionProps) {
-    const sessionType = sessionProps["Session type"];
-    return sessionType.toLowerCase().replace(/[^a-z]+/, '-');
+function normalizeFilename(filename) {
+    return filename.toLowerCase().replace(/[^a-z]+/, '-');
 }
 
-function toIcs(sessionContainer) {
-    const sessionProps = extractSessionProps(sessionContainer)
-    const title = extractTitle(sessionContainer);
-    const sessionType = extractNormalizedSessionType(sessionProps);
-    const description = extractDescription(sessionContainer);
+function toIcs($, sessionContainer) {
+    const sessionProps = extractSessionProps($, sessionContainer)
+    const title = extractTitle($, sessionContainer);
+    const description = extractDescription($, sessionContainer);
+    const sessionType = sessionProps['Session type'];
 
     let timeDetails = {};
     try {
@@ -96,31 +92,50 @@ function toIcs(sessionContainer) {
     return { sessionType, event };
 }
 
-const events = {};
-$(".awsui-util-mb-xl").each((idx, row) => {
-    const { sessionType, event } = toIcs(row);
-    if (event) {
-        if (!events.hasOwnProperty(sessionType)) {
-            events[sessionType] = []
-        }
-        events[sessionType].push(event);
-    }
-});
-
-function writeEvents(eventList, filename) {
+function writeEvents(eventList, outputDir, filename) {
+    filename = normalizeFilename(filename);
     ics.createEvents(eventList, (err, icsEvents) => {
         if (err) {
             throw err;
         } else {
-            fs.writeFileSync(`${__dirname}/${filename}.ics`, icsEvents);
-            console.log(`Wrote ${eventList.length} events to ${__dirname}/${filename}.ics`);
+            fs.writeFileSync(`${outputDir}/${filename}.ics`, icsEvents);
+            console.log(`Wrote ${eventList.length} events to ${outputDir}/${filename}.ics`);
         }
     });
 }
 
-let allEvents = [];
-for (const eventType in events) {
-    allEvents = allEvents.concat(events[eventType]);
-    writeEvents(events[eventType], `${eventType}s`);
+function parseEvents(inputFile, options, command) {
+    const outputDir = options.outputDir;
+
+    fs.mkdirSync(`./${outputDir}`, {recursive: true});
+    const $ = cheerio.load(fs.readFileSync(inputFile), {
+        normalizeWhitespace: true,
+    });
+
+    const events = {};
+    $(".awsui-util-mb-xl").each((idx, row) => {
+        const { sessionType, event } = toIcs($, row);
+        if (event) {
+            if (!events.hasOwnProperty(sessionType)) {
+                events[sessionType] = []
+            }
+            events[sessionType].push(event);
+        }
+    });
+
+    let allEvents = [];
+    for (const eventType in events) {
+        allEvents = allEvents.concat(events[eventType]);
+        writeEvents(events[eventType], outputDir, `${eventType}s`);
+    }
+    writeEvents(allEvents, outputDir, 'all-sessions');
 }
-writeEvents(allEvents, 'all-sessions');
+
+program
+    .name('sessions-to-ics')
+    .version('2021.0.0')
+    .showHelpAfterError(true)
+    .option('-o, --output-dir <dir>', 'the output directory', 'sessions')
+    .argument('[file]', 'the input file', 'sessions.html')
+    .action(parseEvents)
+    .parse();
