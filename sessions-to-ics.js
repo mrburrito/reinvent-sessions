@@ -76,7 +76,7 @@ function extractSessionProps($, sessionContainer) {
         const value = $(SESSION_PROPS_VALUE, n)[1].next.data
         sessionInfo[key] = value
     });
-    console.log(sessionInfo)
+
     return sessionInfo;
 }
 
