@@ -8,6 +8,20 @@ const year = DateTime.now().year;
 const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
 const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d{1,2}):(\d{2}) (AM|PM)/;
 
+// Selectors for elements
+const SESSION_SELECTOR="div[data-testid$=sessionCard]"
+
+// these selectors are relative to SESSION_SELECTOR
+const SESSION_TITLE="h3"
+const SESSION_CODE="h3 + span"
+const SESSION_DESCRIPTION="div.sanitized-html"
+const SESSION_PROPS="div > div > div + div > div > div + div + div + div > div > div"
+
+// props are relative to SESSION_PROPS
+const SESSION_PROPS_KEY="div > div > div > div"
+// there is some massaging done to this next element in the function anyways
+const SESSION_PROPS_VALUE="div > div > div"
+
 function extractTimeDetails(sessionProps) {
     function normalizeHour(hour, ap) {
         return (hour % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
@@ -43,21 +57,26 @@ function extractTimeDetails(sessionProps) {
 }
 
 function extractTitle($, sessionContainer) {
-    const [titleNode, codeNode] = $(".awsui-util-mt-m > div", sessionContainer);
+    const titleNode = $(SESSION_TITLE, sessionContainer);
+    const codeNode = $(SESSION_CODE, sessionContainer);
     const title = $(titleNode).text();
-    const code = $(codeNode.firstChild).text();
-    const extra = codeNode.lastChild !== codeNode.firstChild ? ` ${$(codeNode.lastChild).text()}` : ""
-    return `${title} [${code}${extra}]`;
+    const code = $(codeNode).text();
+    return `${title} [${code}]`;
 }
 
 function extractDescription($, sessionContainer) {
-    return $('.sanitized-html', sessionContainer).html().replace(/\s\s+/g, " ");
+    return $(SESSION_DESCRIPTION, sessionContainer).html().replace(/\s\s+/g, " ");
 }
 
 function extractSessionProps($, sessionContainer) {
-    const sessionInfoElements = $('.awsui-util-mr-xs', sessionContainer);
+    const sessionInfoElements = $(SESSION_PROPS, sessionContainer);
     const sessionInfo = {};
-    sessionInfoElements.each((idx, n) => { sessionInfo[$(n.parent.children[0]).text().replace(":", "")] = $(n.parent.children[1]).text() });
+    sessionInfoElements.children((idx, n) => {
+        const key = $(SESSION_PROPS_KEY, n).text()
+        const value = $(SESSION_PROPS_VALUE, n)[1].next.data
+        sessionInfo[key] = value
+    });
+    console.log(sessionInfo)
     return sessionInfo;
 }
 
@@ -113,8 +132,8 @@ function parseEvents(inputFile, options, command) {
     });
 
     const events = {};
-    $(".awsui-util-mb-xl").each((idx, row) => {
-        const { sessionType, event } = toIcs($, row);
+    $(SESSION_SELECTOR).each((idx, row) => {
+        const { sessionType, event } = toIcs($, row.children);
         if (event) {
             if (!events.hasOwnProperty(sessionType)) {
                 events[sessionType] = []
