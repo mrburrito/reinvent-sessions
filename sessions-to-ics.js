@@ -133,7 +133,7 @@ function parseEvents(inputFile, options, command) {
 
 program
     .name('sessions-to-ics')
-    .version('2021.0.0')
+    .version('2022.0.0')
     .showHelpAfterError(true)
     .option('-o, --output-dir <dir>', 'the output directory', 'sessions')
     .argument('[file]', 'the input file', 'sessions.html')
