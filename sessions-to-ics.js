@@ -5,22 +5,22 @@ const { DateTime } = require("luxon");
 const { program } = require('commander');
 
 const year = DateTime.now().year;
-const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/
+const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/;
 const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d{1,2}):(\d{2}) (AM|PM)/;
 
 // Selectors for elements
-const SESSION_SELECTOR="div[data-testid$=sessionCard]"
+const SESSION_SELECTOR="div[data-testid$=sessionCard]";
 
 // these selectors are relative to SESSION_SELECTOR
-const SESSION_TITLE="h3"
-const SESSION_CODE="h3 + span"
-const SESSION_DESCRIPTION="div.sanitized-html"
-const SESSION_PROPS="div > div > div + div > div > div + div + div + div > div > div"
+const SESSION_TITLE="h3";
+const SESSION_CODE="h3 + span";
+const SESSION_DESCRIPTION="div.sanitized-html";
+const SESSION_PROPS="div > div > div + div > div > div + div + div + div > div > div";
 
 // props are relative to SESSION_PROPS
-const SESSION_PROPS_KEY="div > div > div > div"
+const SESSION_PROPS_KEY="div > div > div > div";
 // there is some massaging done to this next element in the function anyways
-const SESSION_PROPS_VALUE="div > div > div"
+const SESSION_PROPS_VALUE="div > div > div";
 
 function extractTimeDetails(sessionProps) {
     function normalizeHour(hour, ap) {
@@ -152,7 +152,7 @@ function parseEvents(inputFile, options, command) {
 
 program
     .name('sessions-to-ics')
-    .version('2022.0.0')
+    .version('2022.0.1')
     .showHelpAfterError(true)
     .option('-o, --output-dir <dir>', 'the output directory', 'sessions')
     .argument('[file]', 'the input file', 'sessions.html')
