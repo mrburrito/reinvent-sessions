@@ -1,3 +1,10 @@
+reinvent.cookie
+sessions*.json
+interests*.json
+*.ics
+*.csv
+*.html
+*.iml
 
 ### Node template
 # Logs
@@ -74,7 +81,4 @@ typings/
 # Serverless directories
 .serverless
 
-*.html
-*.ics
 .idea/
-*.iml

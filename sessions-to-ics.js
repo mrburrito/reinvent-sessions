@@ -1,114 +1,22 @@
-const cheerio = require("cheerio");
 const fs = require("fs");
 const ics = require("ics");
 const { DateTime } = require("luxon");
-const { program } = require('commander');
+const { program } = require("commander");
 
-const year = DateTime.now().year;
-const dateRx = /(Mon|Tues|Wednes|Thurs|Fri)day, (December|November) (\d{1,2})/;
-const timeRx = /(\d{1,2}):(\d{2}) (AM|PM) - (\d{1,2}):(\d{2}) (AM|PM)/;
-
-// Selectors for elements
-const SESSION_SELECTOR="div[data-testid$=sessionCard]";
-
-// these selectors are relative to SESSION_SELECTOR
-const SESSION_TITLE="h3";
-const SESSION_CODE="h3 + span";
-const SESSION_DESCRIPTION="div.sanitized-html";
-const SESSION_PROPS="div > div > div + div > div > div + div + div + div > div > div";
-
-// props are relative to SESSION_PROPS
-const SESSION_PROPS_KEY="div > div > div > div";
-// there is some massaging done to this next element in the function anyways
-const SESSION_PROPS_VALUE="div > div > div";
-
-function extractTimeDetails(sessionProps) {
-    function normalizeHour(hour, ap) {
-        return (hour % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
-    }
-
-    function vegasDate(mon, dt, hour, ap, min) {
-        return DateTime.local(year, mon, dt, normalizeHour(hour, ap), min)
-            .setZone('America/Los_Angeles', { keepLocalTime: true })
-            .setZone('UTC');
-    }
-
-    const matchDate = dateRx.exec(sessionProps["Date"]);
-    const monthName = matchDate[2].toLowerCase();
-    const month = monthName === "november" ? 11 : 12;
-    const date = +matchDate[3];
-
-    const matchTime = timeRx.exec(sessionProps["Time"]);
-    const startHour = +matchTime[1];
-    const startMin = +matchTime[2];
-    const startAp = matchTime[3];
-    const endHour = +matchTime[4];
-    const endMin = +matchTime[5];
-    const endAp = matchTime[6];
-
-    const startDate = vegasDate(month, date, startHour, startAp, startMin);
-    const endDate = vegasDate(month, date, endHour, endAp, endMin);
-
-    const duration = endDate.diff(startDate, ['hours', 'minutes']);
-    return {
-        start: [startDate.year, startDate.month, startDate.day, startDate.hour, startDate.minute],
-        duration: { hours: duration.hours, minutes: duration.minutes },
-    };
-}
-
-function extractTitle($, sessionContainer) {
-    const titleNode = $(SESSION_TITLE, sessionContainer);
-    const codeNode = $(SESSION_CODE, sessionContainer);
-    const title = $(titleNode).text();
-    const code = $(codeNode).text();
-    return `${title} [${code}]`;
-}
-
-function extractDescription($, sessionContainer) {
-    return $(SESSION_DESCRIPTION, sessionContainer).html().replace(/\s\s+/g, " ");
-}
-
-function extractSessionProps($, sessionContainer) {
-    const sessionInfoElements = $(SESSION_PROPS, sessionContainer);
-    const sessionInfo = {};
-    sessionInfoElements.children((idx, n) => {
-        const key = $(SESSION_PROPS_KEY, n).text()
-        const value = $(SESSION_PROPS_VALUE, n)[1].next.data
-        sessionInfo[key] = value
-    });
-
-    return sessionInfo;
-}
+const CSV_HEADINGS = {
+    startDay: "Start Day",
+    startTime: "Start Time",
+    endDay: "End Day",
+    endTime: "End Time",
+    venue: "Venue",
+    room: "Room",
+    sessionType: "Session Type",
+    sessionId: "Session ID",
+    title: "Title",
+};
 
 function normalizeFilename(filename) {
     return filename.toLowerCase().replace(/[^a-z]+/, '-');
-}
-
-function toIcs($, sessionContainer) {
-    const sessionProps = extractSessionProps($, sessionContainer)
-    const title = extractTitle($, sessionContainer);
-    const description = extractDescription($, sessionContainer);
-    const sessionType = sessionProps['Session type'];
-
-    let timeDetails = {};
-    try {
-        timeDetails = extractTimeDetails(sessionProps);
-    } catch (err) {
-        // console.debug(err);
-        // console.debug($(sessionContainer).html());
-        console.warn(`Unable to extract schedule for session: ${title}`);
-        return { undefined, undefined };
-    }
-
-    const event = {
-        start: timeDetails.start,
-        startInputType: "utc",
-        duration: timeDetails.duration,
-        location: sessionProps["Location"],
-        title: title,
-        description: `${sessionType}\n\n${description}`
-    };
-    return { sessionType, event };
 }
 
 function writeEvents(eventList, outputDir, filename) {
@@ -123,38 +31,116 @@ function writeEvents(eventList, outputDir, filename) {
     });
 }
 
-function parseEvents(inputFile, options, command) {
+function writeCsv(eventList, outputDir, filename) {
+    filename = normalizeFilename(filename);
+    const eventsWithHeadings = [CSV_HEADINGS, ...eventList];
+    const outputEvents = eventsWithHeadings.map((e) => {
+        return `${e.startDay},${e.startTime},${e.endDay},${e.endTime},"${e.venue}","${e.room}",${e.sessionType},"${e.sessionId}","${e.title}"`;
+    });
+    fs.writeFileSync(`${outputDir}/${filename}.csv`, outputEvents.join("\n"));
+    console.log(`Wrote ${eventList.length} events to ${outputDir}/${filename}.csv`);
+}
+
+function loadSessionsByID(sessionsFile) {
+    const sessions = JSON.parse(fs.readFileSync(sessionsFile));
+    return sessions.data.reduce((a, v) => ({ ...a, [v.scheduleUid]: v}), {});
+}
+
+function loadInterests(interestsFile, sessions) {
+    const interests = JSON.parse(fs.readFileSync(interestsFile));
+    return interests.data.followedSessions.map((interest) => sessions[interest.scheduleUid]);
+}
+
+function loadReserved(interestsFile, sessions) {
+    const interests = JSON.parse(fs.readFileSync(interestsFile));
+    return interests.data.userReservationSessions.map((reservation) => sessions[reservation.scheduleUid]);
+}
+
+function toIcsDateTime(unixTimeSec) {
+    const unixTimeMs = unixTimeSec * 1000;
+    const date = new Date(unixTimeMs);
+    return [
+        date.getUTCFullYear(),
+        date.getUTCMonth() + 1, // ICS months are 1-indexed; JavaScript are 0
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes()
+    ];
+}
+
+function toCsvDateTime(unixTimeSec) {
+    const unixTimeMs = unixTimeSec * 1000;
+    const date = DateTime.fromMillis(unixTimeMs).setZone("America/Los_Angeles");
+    return { day: date.toFormat("EEE"), time: date.toFormat("HH:mm") }
+}
+
+function sessionToIcs(session) {
+    const sessionType = session.sessionType;
+    const event = {
+        start: toIcsDateTime(session.startDateTime),
+        startInputType: "utc",
+        end: toIcsDateTime(session.endDateTime),
+        location: `${session.venueName} - ${session.locationName}`,
+        title: `${session.thirdPartyID} - ${session.title}`,
+        description: `${sessionType}\n\n${session.description}`,
+    };
+    return { sessionType, event };
+}
+
+function sessionToCsv(session) {
+    const start = toCsvDateTime(session.startDateTime);
+    const end = toCsvDateTime(session.endDateTime);
+    return {
+        startDay: start.day,
+        startTime: start.time,
+        endDay: end.day,
+        endTime: end.time,
+        venue: session.venueName,
+        room: session.locationName,
+        sessionType: session.sessionType,
+        sessionId: session.thirdPartyID.replace(/\s+/g, ""),
+        title: session.title,
+    };
+}
+
+function interestsToICS(sessionsFile, interestsFile, options, command) {
+    const sessions = loadSessionsByID(sessionsFile);
+    const interests = loadInterests(interestsFile, sessions);
+    const reservations = loadReserved(interestsFile, sessions);
     const outputDir = options.outputDir;
 
     fs.mkdirSync(`./${outputDir}`, {recursive: true});
-    const $ = cheerio.load(fs.readFileSync(inputFile), {
-        normalizeWhitespace: true,
-    });
 
-    const events = {};
-    $(SESSION_SELECTOR).each((idx, row) => {
-        const { sessionType, event } = toIcs($, row.children);
-        if (event) {
-            if (!events.hasOwnProperty(sessionType)) {
-                events[sessionType] = []
+    if (!options.reservedOnly) {
+        const events = {};
+        interests.map(sessionToIcs).forEach((session) => {
+            if (!events.hasOwnProperty(session.sessionType)) {
+                events[session.sessionType] = [];
             }
-            events[sessionType].push(event);
-        }
-    });
+            events[session.sessionType].push(session.event);
+        });
 
-    let allEvents = [];
-    for (const eventType in events) {
-        allEvents = allEvents.concat(events[eventType]);
-        writeEvents(events[eventType], outputDir, `${eventType}s`);
+        let allEvents = [];
+        for (const eventType in events) {
+            allEvents = allEvents.concat(events[eventType]);
+            writeEvents(events[eventType], outputDir, `${eventType}s`);
+        }
+        writeEvents(allEvents, outputDir, 'all-sessions');
+
+        const csvEvents = interests.map(sessionToCsv);
+        writeCsv(csvEvents, outputDir, 'all-sessions');
     }
-    writeEvents(allEvents, outputDir, 'all-sessions');
+
+    writeEvents(reservations.map((r) => sessionToIcs(r).event), outputDir, "reserved");
 }
 
 program
     .name('sessions-to-ics')
-    .version('2022.0.1')
+    .version('2023.0.0')
     .showHelpAfterError(true)
     .option('-o, --output-dir <dir>', 'the output directory', 'sessions')
-    .argument('[file]', 'the input file', 'sessions.html')
-    .action(parseEvents)
+    .option('-r, --reserved-only', 'Only output reserved sessions')
+    .argument('<sessions>', 'the session catalog')
+    .argument('<interests>', 'the interests file')
+    .action(interestsToICS)
     .parse();
