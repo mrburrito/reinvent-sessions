@@ -50,21 +50,26 @@ function loadSessionsByID(sessionsFile) {
     return sessions.data.reduce((a, v) => ({ ...a, [v.scheduleUid]: v}), {});
 }
 
+function lookupSession(lookupType, sessions, scheduleUid) {
+    const session = sessions[scheduleUid];
+    if (!session) {
+        console.warn(`Unknown Session [${lookupType}]: ${scheduleUid}`);
+    }
+    return session;
+}
+
 function loadInterests(interestsFile, sessions) {
     const interests = JSON.parse(fs.readFileSync(interestsFile));
-    return interests.data.followedSessions.map((interest) => {
-        const session = sessions[interest.scheduleUid];
-        if (!session) {
-            console.warn(`Unknown Session in Interests: ${interest.scheduleUid}`);
-            return null;
-        }
-        return session;
-    }).filter(exists);
+    return interests.data.followedSessions
+        .map((interest) => lookupSession("Interests", sessions, interest.scheduleUid))
+        .filter(exists);
 }
 
 function loadReserved(interestsFile, sessions) {
     const interests = JSON.parse(fs.readFileSync(interestsFile));
-    return interests.data.userReservationSessions.map((reservation) => sessions[reservation.scheduleUid]);
+    return interests.data.userReservationSessions
+        .map((reservation) => lookupSession("Reservations", sessions, reservation.scheduleUid))
+        .filter(exists);
 }
 
 function toIcsDateTime(unixTimeSec) {
