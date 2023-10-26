@@ -15,6 +15,10 @@ const CSV_HEADINGS = {
     title: "Title",
 };
 
+function exists(obj) {
+    return obj !== null && obj !== undefined;
+}
+
 function normalizeFilename(filename) {
     return filename.toLowerCase().replace(/[^a-z]+/, '-');
 }
@@ -55,7 +59,7 @@ function loadInterests(interestsFile, sessions) {
             return null;
         }
         return session;
-    }).filter((s) => s !== null);
+    }).filter(exists);
 }
 
 function loadReserved(interestsFile, sessions) {
@@ -120,7 +124,7 @@ function interestsToICS(sessionsFile, interestsFile, options, command) {
 
     if (!options.reservedOnly) {
         const events = {};
-        interests.map(sessionToIcs).forEach((session) => {
+        interests.filter(exists).map(sessionToIcs).forEach((session) => {
             if (!events.hasOwnProperty(session.sessionType)) {
                 events[session.sessionType] = [];
             }
@@ -134,7 +138,7 @@ function interestsToICS(sessionsFile, interestsFile, options, command) {
         }
         writeEvents(allEvents, outputDir, 'all-sessions');
 
-        const csvEvents = interests.map(sessionToCsv);
+        const csvEvents = interests.filter(exists).map(sessionToCsv);
         writeCsv(csvEvents, outputDir, 'all-sessions');
     }
 
