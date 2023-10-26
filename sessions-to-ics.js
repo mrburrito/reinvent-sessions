@@ -48,7 +48,14 @@ function loadSessionsByID(sessionsFile) {
 
 function loadInterests(interestsFile, sessions) {
     const interests = JSON.parse(fs.readFileSync(interestsFile));
-    return interests.data.followedSessions.map((interest) => sessions[interest.scheduleUid]);
+    return interests.data.followedSessions.map((interest) => {
+        const session = sessions[interest.scheduleUid];
+        if (!session) {
+            console.warn(`Unknown Session in Interests: ${interest.scheduleUid}`);
+            return null;
+        }
+        return session;
+    }).filter((s) => s !== null);
 }
 
 function loadReserved(interestsFile, sessions) {
