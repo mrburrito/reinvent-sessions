@@ -90,7 +90,7 @@ function toCsvDateTime(unixTimeSec) {
     return { day: date.toFormat("EEE"), time: date.toFormat("HH:mm") }
 }
 
-function sessionToIcs(session) {
+function sessionToIcs(session, tentative) {
     const sessionType = session.sessionType;
     const event = {
         start: toIcsDateTime(session.startDateTime),
@@ -99,6 +99,8 @@ function sessionToIcs(session) {
         location: `${session.venueName} - ${session.locationName}`,
         title: `${session.thirdPartyID} - ${session.title}`,
         description: `${sessionType}\n\n${session.description}`,
+        categories: [session.venueName, sessionType],
+        busyStatus: tentative ? "TENTATIVE" : "BUSY",
     };
     return { sessionType, event };
 }
@@ -129,7 +131,7 @@ function interestsToICS(sessionsFile, interestsFile, options, command) {
 
     if (!options.reservedOnly) {
         const events = {};
-        interests.filter(exists).map(sessionToIcs).forEach((session) => {
+        interests.filter(exists).map((s) => sessionToIcs(s, true)).forEach((session) => {
             if (!events.hasOwnProperty(session.sessionType)) {
                 events[session.sessionType] = [];
             }
@@ -147,7 +149,7 @@ function interestsToICS(sessionsFile, interestsFile, options, command) {
         writeCsv(csvEvents, outputDir, 'all-sessions');
     }
 
-    writeEvents(reservations.map((r) => sessionToIcs(r).event), outputDir, "reserved");
+    writeEvents(reservations.map((r) => sessionToIcs(r, false).event), outputDir, "reserved");
 }
 
 program

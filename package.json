@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "commander": "^8.2.0",
-    "ics": "^2.31.0",
+    "ics": "^3.5.0",
     "luxon": "^3.4.3"
   }
 }
