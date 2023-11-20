@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-USER_ID="${1?Usage: ${BASH_SOURCE[0]} <user_id>}"
-
 if [[ ! -f reinvent.cookie ]]; then
     echo >&2 "Please login to https://hub.reinvent.awsevents.com/attendee-portal/agenda/ and save"
     echo >&2 "all Cookies from the request to ./reinvent.cookie"
@@ -25,8 +23,7 @@ curl -sLf 'https://hub.reinvent.awsevents.com/attendee-portal-api/sessions/list/
 -H 'Sec-Fetch-Dest: empty' \
 -H 'X-Requested-With: XMLHttpRequest' | jq > "sessions_${now}.json"
 
-
-curl -sLf "https://hub.reinvent.awsevents.com/attendee-portal-api/events/getUserReservations/?user_uuid=${USER_ID}" \
+curl -sLf "https://hub.reinvent.awsevents.com/attendee-portal-api/events/getUserReservations/" \
 -X 'GET' \
 -H 'Accept: application/json, text/plain, */*' \
 -H 'Sec-Fetch-Site: same-origin' \

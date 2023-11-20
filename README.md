@@ -17,18 +17,16 @@ Steps to use:
 2. Open your browser's Developer Tools and select any request to view it's properties. (You may need to refresh the page)
 
 3. Save the `Cookie` value from the Request headers to `reinvent.cookie`. You can get this by copying the header value, copying the full request as curl and pulling out the `-H` value, etc. It should look like `AWSALB=7Sr4u...`; do not save the `Cookie: ` key to the file.
-ß
-4. Get the "userUid" from the Response returned at the "/user" http call at Developer Tools.
 
-6. Run `./get_sessions.sh "<userUid>"` passing the userUid; this will create two files, `sessions_YYYY-MM-DDTHHMM.json` and `interests_YYYY-MM-DDTHHMM.json`.
+4. Run `./get_sessions.sh`; this will create two files, `sessions_YYYY-MM-DDTHHMM.json` and `interests_YYYY-MM-DDTHHMM.json`.
 
-7. Install node modules
+5. Install node modules
 
     ```bash
     npm install
     ```
     
-8. Execute the script to generate the `.ics` files.
+6. Execute the script to generate the `.ics` files.
 
    ```bash
    Usage: node sessions-to-ics.js [options] <sessions> <interests>
@@ -46,4 +44,4 @@ Steps to use:
    
    ICS files will be written to the output directory (default `./sessions`).
 
-9. Import the `*.ics` files into the Calendar of your choice.
+7. Import the `*.ics` files into the Calendar of your choice.
