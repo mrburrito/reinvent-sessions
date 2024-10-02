@@ -105,6 +105,7 @@ const CSV_HEADINGS = {
     endTime: "End Time",
     venue: "Venue",
     room: "Room",
+    capacity: "Capacity",
     sessionType: "Session Type",
     sessionId: "Session ID",
     title: "Title",
@@ -134,7 +135,7 @@ function writeCsv(eventList, outputDir, filename) {
     filename = normalizeFilename(filename);
     const eventsWithHeadings = [CSV_HEADINGS, ...eventList];
     const outputEvents = eventsWithHeadings.map((e) => {
-        return `${e.startDay},${e.startTime},${e.endDay},${e.endTime},"${e.venue}","${e.room}",${e.sessionType},"${e.sessionId}","${e.title}"`;
+        return `${e.startDay},${e.startTime},${e.endDay},${e.endTime},"${e.venue}","${e.room}",${e.capacity},${e.sessionType},"${e.sessionId}","${e.title}"`;
     });
     fs.writeFileSync(`${outputDir}/${filename}.csv`, outputEvents.join("\n"));
     console.log(`Wrote ${eventList.length} events to ${outputDir}/${filename}.csv`);
@@ -170,7 +171,7 @@ function sessionToIcs(session) {
         end: toIcsDateTime(session.end),
         location: `${session.venue} | ${session.room}`,
         title: `${session.code} - ${session.title}`,
-        description: `${sessionType}\n\n${session.abstract}${withSep(speakers?.join('\n'), '\n\n')}`,
+        description: `${sessionType}\nCapacity: ${session.capacity}\n\n${session.abstract}${withSep(speakers?.join('\n'), '\n\n')}`,
     };
     return { sessionType, event };
 }
@@ -207,10 +208,10 @@ function toTitleCase(str) {
 function parseSession(session) {
     const toUnixTime = (d) => DateTime.fromFormat(d, 'yyyy/MM/dd HH:mm:ss', {zone: 'UTC'}).toUnixInteger();
     const sessionTime = session.times[0];
-    const [venue, room] = sessionTime.room.split('|', 2);
+    const [venue, ...room] = sessionTime.room.split(' | ');
 
     return {
-        code: session.code,
+        code: session.code.replace(/\s+/, ''),
         title: session.title,
         sessionType: toTitleCase(pluralize.singular(getAttribute(session, 'Sessiontypes')[0])),
         abstract: session.abstract,
@@ -220,7 +221,7 @@ function parseSession(session) {
             jobTitle: p.jobTitle
         })),
         venue,
-        room,
+        room: room.join(' | '),
         capacity: sessionTime.capacity,
         start: toUnixTime(sessionTime.utcStartTime),
         end: toUnixTime(sessionTime.utcEndTime),
