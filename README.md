@@ -1,6 +1,6 @@
 # sessions-to-ics
 
-**Updated for 2023!**
+**Updated for 2024!**
 
 This script exports the re:Invent sessions you've flagged as favorites to iCal (.ics) format.
 
@@ -12,21 +12,32 @@ once you've registered, a `reserved.ics` file containing your reserved sessions.
 
 Steps to use:
 
-1. Go to your AWS re:Invent [Sessions](https://hub.reinvent.awsevents.com/attendee-portal/agenda/). Make sure you're logged in.
+1. Copy `config.template.json` to `config.json`
 
-2. Open your browser's Developer Tools and select any request to view it's properties. (You may need to refresh the page)
+   ```bash
+   cp config.template.json config.json
+   ```
 
-3. Save the `Cookie` value from the Request headers to `reinvent.cookie`. You can get this by copying the header value, copying the full request as curl and pulling out the `-H` value, etc. It should look like `AWSALB=7Sr4u...`; do not save the `Cookie: ` key to the file.
+2. Open your browser's Developer Tools and go to the Network tab.
 
-4. Run `./get_sessions.sh`; this will create two files, `sessions_YYYY-MM-DDTHHMM.json` and `interests_YYYY-MM-DDTHHMM.json`.
+3. Go to your AWS re:Invent [Agenda](https://registration.awsevents.com/flow/awsevents/reinvent24/myagenda/page/myagenda). Make sure you're logged in.
 
-5. Install node modules
+4. Find the `myData` (https://catalog.awsevents.com/api/myData) request in the Network tab of Developer Tools.
+
+5. Copy the `cookie`, `rfapiprofileid`, and `rfauthotken` headers and add them to `config.json`.
+
+   You can copy the full request as a cURL request and find the `-H` values to load into `config.json`. Make sure to
+   take only the values and not the `cookie: ` key prefix.
+
+7. Run `./get_sessions.sh`; this will create the file `interests_YYYY-MM-DDTHHMM.json`.
+
+8. Install node modules
 
     ```bash
     npm install
     ```
     
-6. Execute the script to generate the `.ics` files.
+9.  Execute the script to generate the `.ics` files.
 
    ```bash
    Usage: node sessions-to-ics.js [options] <sessions> <interests>
@@ -44,4 +55,4 @@ Steps to use:
    
    ICS files will be written to the output directory (default `./sessions`).
 
-7. Import the `*.ics` files into the Calendar of your choice.
+10. Import the `*.ics` files into the Calendar of your choice.

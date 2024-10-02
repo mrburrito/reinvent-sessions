@@ -1,4 +1,5 @@
 reinvent.cookie
+config.json
 sessions*.json
 interests*.json
 *.ics
