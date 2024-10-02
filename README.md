@@ -43,7 +43,7 @@ Steps to use:
    ```bash
    $ node sessions-to-ics.js --help
 
-   Usage: node sessions-to-ics.js [options]
+   Usage: sessions-to-ics [options]
 
    Options:
       -V, --version           output the version number
