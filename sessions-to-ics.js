@@ -109,6 +109,8 @@ const CSV_HEADINGS = {
     sessionType: "Session Type",
     sessionId: "Session ID",
     title: "Title",
+    topics: "Topic",
+    areasOfInterest: "Area of Interest"
 };
 
 function exists(obj) {
@@ -135,7 +137,7 @@ function writeCsv(eventList, outputDir, filename) {
     filename = normalizeFilename(filename);
     const eventsWithHeadings = [CSV_HEADINGS, ...eventList];
     const outputEvents = eventsWithHeadings.map((e) => {
-        return `${e.startDay},${e.startTime},${e.endDay},${e.endTime},"${e.venue}","${e.room}",${e.capacity},${e.sessionType},"${e.sessionId}","${e.title}"`;
+        return `${e.startDay},${e.startTime},${e.endDay},${e.endTime},"${e.venue}","${e.room}",${e.capacity},${e.sessionType},"${e.sessionId}","${e.title}","${e.topics}","${e.areasOfInterest}"`;
     });
     fs.writeFileSync(`${outputDir}/${filename}.csv`, outputEvents.join("\n"));
     console.log(`Wrote ${eventList.length} events to ${outputDir}/${filename}.csv`);
@@ -161,9 +163,11 @@ function toCsvDateTime(unixTimeSec) {
 
 function sessionToIcs(session) {
     const sessionType = session.sessionType;
-    const withSep = (s, sep) => s ? `${sep}${s}` : '';
-    const formatSpeaker = (s) => `${s.name}${withSep(s.jobTitle, ' - ')}${withSep(s.company, ' - ')}`;
+    const withPrefix = (s, sep) => s ? `${sep}${s}` : '';
+    const formatSpeaker = (s) => `${s.name}${withPrefix(s.jobTitle, ' - ')}${withPrefix(s.company, ' - ')}`;
     const speakers = session.speakers?.map(formatSpeaker);
+    const topics = session.topics?.sort()?.join(', ') ?? '';
+    const areasOfInterest = session.areasOfInterest?.sort()?.join(', ') ?? '';
 
     const event = {
         start: toIcsDateTime(session.start),
@@ -171,7 +175,13 @@ function sessionToIcs(session) {
         end: toIcsDateTime(session.end),
         location: `${session.venue} | ${session.room}`,
         title: `${session.code} - ${session.title}`,
-        description: `${sessionType}\nCapacity: ${session.capacity}\n\n${session.abstract}${withSep(speakers?.join('\n'), '\n\n')}`,
+        description: [
+            `${sessionType}\nCapacity: ${session.capacity}`,
+            withPrefix(topics, 'Topics: '),
+            withPrefix(areasOfInterest, 'Areas of Interest: '),
+            session.abstract,
+            speakers?.join('\n'),
+        ].filter(exists).join('\n\n'),
     };
     return { sessionType, event };
 }
@@ -190,6 +200,8 @@ function sessionToCsv(session) {
         sessionType: session.sessionType,
         sessionId: session.code,
         title: session.title,
+        topics: session.topics?.sort()?.join(', ') ?? '',
+        areasOfInterest: session.areasOfInterest?.sort()?.join(', ') ?? '',
     };
 }
 
@@ -220,6 +232,8 @@ function parseSession(session) {
             company: p.companyName,
             jobTitle: p.jobTitle
         })),
+        topics: getAttribute(session, 'Topic'),
+        areasOfInterest: getAttribute(session, 'Areaofinterest'),
         venue,
         room: room.join(' | '),
         capacity: sessionTime.capacity,
