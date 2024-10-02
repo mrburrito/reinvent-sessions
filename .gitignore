@@ -1,10 +1,12 @@
 reinvent.cookie
+config.json
 sessions*.json
 interests*.json
 *.ics
 *.csv
 *.html
 *.iml
+agenda.json
 
 ### Node template
 # Logs
