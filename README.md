@@ -41,7 +41,9 @@ Steps to use:
 7.  Execute the script to generate the `.ics` files.
 
    ```bash
-   Usage: sessions-to-ics [options]
+   $ node sessions-to-ics.js --help
+
+   Usage: node sessions-to-ics.js [options]
 
    Options:
       -V, --version           output the version number
@@ -52,5 +54,20 @@ Steps to use:
    ```
    
    ICS files will be written to the output directory (default `./sessions`).
+
+   ```bash
+   $ node sessions-to-ics.js -a
+   Retrieving agenda ...
+   Saving raw agenda to sessions/agenda.json
+   Downloaded agenda. Found 0 Reservations and 207 Interests.
+   Wrote 92 events to sessions/chalk-talks.ics
+   Wrote 66 events to sessions/breakout-sessions.ics
+   Wrote 34 events to sessions/workshops.ics
+   Wrote 9 events to sessions/gamified-learnings.ics
+   Wrote 1 events to sessions/innovation-talks.ics
+   Wrote 5 events to sessions/keynotes.ics
+   Wrote 207 events to sessions/all-sessions.ics
+   Wrote 207 events to sessions/all-sessions.csv
+   ```
 
 8. Import the `*.ics` files into the Calendar of your choice.
