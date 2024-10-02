@@ -32,7 +32,7 @@ ${JSON.stringify(configTemplate, null, 2)}
 `.trimStart();
 
 // Function to fetch the agenda data
-const fetchAgenda = async () => {
+const fetchAgenda = async (options) => {
     // Load the configuration file
     const {cookie, rfapiprofileid, rfauthtoken} = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
 
@@ -68,6 +68,12 @@ const fetchAgenda = async () => {
                 }
             }
         );
+
+        if (options.saveAgenda) {
+            const agendaFile = `${options.outputDir}/agenda.json`;
+            console.error(`Saving raw agenda to ${agendaFile}`);
+            fs.writeFileSync(agendaFile, JSON.stringify(response.data, null, 2));
+        }
 
         if (!response.data.hasOwnProperty('loggedInUser')) {
             console.error('Unable to download schedule. Please check credentials and try again.\n');
@@ -223,7 +229,7 @@ function parseSession(session) {
 }
 
 async function exportSessions(options, command) {
-    const {reserved, interests} = await fetchAgenda();
+    const {reserved, interests} = await fetchAgenda(options);
     const outputDir = options.outputDir;
 
     fs.mkdirSync(`./${outputDir}`, {recursive: true});
@@ -259,5 +265,6 @@ program
     .showHelpAfterError(true)
     .option('-o, --output-dir <dir>', 'the output directory', 'sessions')
     .option('-r, --reserved-only', 'Only output reserved sessions')
+    .option('-a, --save-agenda', 'Save the raw agenda JSON to <dir>/agenda.json')
     .action(exportSessions)
     .parse();

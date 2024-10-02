@@ -6,6 +6,7 @@ interests*.json
 *.csv
 *.html
 *.iml
+agenda.json
 
 ### Node template
 # Logs
