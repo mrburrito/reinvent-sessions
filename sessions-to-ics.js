@@ -16,7 +16,6 @@ const CONFIG_FILE = 'config.json';
 
 if (!fs.existsSync(CONFIG_FILE)) {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(configTemplate, null, 2));
-    fs.copyFileSync(CONFIG_TEMPLATE_FILE, CONFIG_FILE);
 }
 
 // Show help information
