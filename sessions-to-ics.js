@@ -243,10 +243,10 @@ function parseSession(session) {
 }
 
 async function exportSessions(options, command) {
-    const {reserved, interests} = await fetchAgenda(options);
     const outputDir = options.outputDir;
-
     fs.mkdirSync(`./${outputDir}`, {recursive: true});
+
+    const {reserved, interests} = await fetchAgenda(options);
 
     if (!options.reservedOnly) {
         const events = {};
