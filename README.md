@@ -1,6 +1,6 @@
 # sessions-to-ics
 
-**Updated for 2024!**
+**Updated for 2025!**
 
 This script exports the re:Invent sessions you've flagged as favorites to iCal (.ics) format.
 
@@ -23,7 +23,7 @@ Steps to use:
 
 2. Open your browser's Developer Tools and go to the Network tab.
 
-3. Go to your AWS re:Invent [Agenda](https://registration.awsevents.com/flow/awsevents/reinvent24/myagenda/page/myagenda). Make sure you're logged in.
+3. Go to the AWS re:Invent [Event Catalog](https://registration.awsevents.com/flow/awsevents/reinvent2025/event-catalog/page/eventCatalog). Make sure you're logged in.
 
 4. Find the `myData` (https://catalog.awsevents.com/api/myData) request in the Network tab of Developer Tools.
 
@@ -31,6 +31,10 @@ Steps to use:
 
    You can copy the full request as a cURL request and find the `-H` values to load into `config.json`. Make sure to
    take only the values and not the `cookie: ` key prefix.
+
+   You may need to ensure 'Cookies' are selected for inclusion in the
+   headers and some browsers may use the `-b` flag for curl to set
+   cookies instead of `-H 'cookie: ...'`.
 
 6. Install node modules
 
