@@ -55,7 +55,7 @@ const fetchAgenda = async (options) => {
                     'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                     'rfapiprofileid': rfapiprofileid,
                     'rfauthtoken': rfauthtoken,
-                    'rfwidgetid': '2mD9wSl40wp2ViMLVpbqhzk20AkPDb6Z',
+                    'rfwidgetid': 'QNo5ySw8IarY51RBuM1VMy8dhCq2uudd',
                     'cookie': cookie,
                     'origin': 'https://registration.awsevents.com',
                     'priority': 'u=1, i',
@@ -218,13 +218,18 @@ function toTitleCase(str) {
 
 function parseSession(session) {
     const toUnixTime = (d) => DateTime.fromFormat(d, 'yyyy/MM/dd HH:mm:ss', {zone: 'UTC'}).toUnixInteger();
-    const sessionTime = session.times[0];
-    const [venue, ...room] = sessionTime.room.split(' | ');
+    const sessionTime = session.times && session.times.length > 0 ? session.times[0] : {
+        room: 'UNKNOWN | UNKNOWN',
+        capacity: 0,
+        utcStartTime: '2025/11/30 12:00:00',
+        utcEndTime: '2025/11/30 13:00:00'
+    };
+    const [venue, ...room] = sessionTime.room?.split(' | ') ?? ['UNKNOWN', 'UNKNOWN'];
 
     return {
         code: session.code.replace(/\s+/, ''),
         title: session.title,
-        sessionType: toTitleCase(pluralize.singular(getAttribute(session, 'Sessiontypes')[0])),
+        sessionType: toTitleCase(pluralize.singular(getAttribute(session, 'Type')[0])),
         abstract: session.abstract,
         speakers: session.participants?.map((p) => ({
             name: p.fullName,
@@ -232,7 +237,7 @@ function parseSession(session) {
             jobTitle: p.jobTitle
         })),
         topics: getAttribute(session, 'Topic'),
-        areasOfInterest: getAttribute(session, 'Areaofinterest'),
+        areasOfInterest: getAttribute(session, 'AreaofInterest'),
         venue,
         room: room.join(' | '),
         capacity: sessionTime.capacity,
