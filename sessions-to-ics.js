@@ -218,6 +218,30 @@ function toTitleCase(str) {
 
 function parseSession(session) {
     const toUnixTime = (d) => DateTime.fromFormat(d, 'yyyy/MM/dd HH:mm:ss', {zone: 'UTC'}).toUnixInteger();
+    
+    // Handle personal calendar items
+    if (session.type === 'Calendar Item') {
+        // Convert local time to UTC
+        const startDateTime = DateTime.fromFormat(`${session.date} ${session.time}`, 'yyyy-MM-dd HH:mm', { zone: 'America/Los_Angeles' });
+        const endDateTime = startDateTime.plus({ minutes: session.length });
+        
+        return {
+            code: '',  // Personal items don't have codes
+            title: session.title,
+            sessionType: 'Personal',
+            abstract: '',
+            speakers: [],
+            topics: [],
+            areasOfInterest: [],
+            venue: session.location?.split(' | ')[0] || '',
+            room: session.location?.split(' | ').slice(1).join(' | ') || session.location || '',
+            capacity: 0,
+            start: startDateTime.toUnixInteger(),
+            end: endDateTime.toUnixInteger()
+        };
+    }
+
+    // Handle regular sessions
     const sessionTime = session.times && session.times.length > 0 ? session.times[0] : {
         room: 'UNKNOWN | UNKNOWN',
         capacity: 0,
@@ -227,15 +251,15 @@ function parseSession(session) {
     const [venue, ...room] = sessionTime.room?.split(' | ') ?? ['UNKNOWN', 'UNKNOWN'];
 
     return {
-        code: session.code.replace(/\s+/, ''),
+        code: session.code?.replace(/\s+/, '') || '',
         title: session.title,
-        sessionType: toTitleCase(pluralize.singular(getAttribute(session, 'Type')[0])),
-        abstract: session.abstract,
+        sessionType: toTitleCase(pluralize.singular(getAttribute(session, 'Type')[0] || 'Session')),
+        abstract: session.abstract || '',
         speakers: session.participants?.map((p) => ({
             name: p.fullName,
             company: p.companyName,
             jobTitle: p.jobTitle
-        })),
+        })) || [],
         topics: getAttribute(session, 'Topic'),
         areasOfInterest: getAttribute(session, 'AreaofInterest'),
         venue,
@@ -243,7 +267,6 @@ function parseSession(session) {
         capacity: sessionTime.capacity,
         start: toUnixTime(sessionTime.utcStartTime),
         end: toUnixTime(sessionTime.utcEndTime),
-
     };
 }
 
