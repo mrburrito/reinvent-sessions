@@ -81,8 +81,8 @@ const fetchAgenda = async (options) => {
         }
 
         const agenda = {
-            reserved: response.data.mySchedule?.filter(exists)?.map(parseSession) ?? [],
-            interests: response.data.sessionInterests?.filter(exists)?.map(parseSession) ?? [],
+            reserved: transformSessions(response.data.mySchedule),
+            interests: transformSessions(response.data.sessionInterests),
         };
         console.error(`Downloaded agenda. Found ${agenda.reserved.length} Reservations and ${agenda.interests.length} Interests.`);
         return agenda;
@@ -114,6 +114,10 @@ const CSV_HEADINGS = {
 
 function exists(obj) {
     return obj !== null && obj !== undefined;
+}
+
+function transformSessions(collection) {
+    return collection?.filter(exists)?.map(parseSession)?.filter(exists) ?? [];
 }
 
 function normalizeFilename(filename) {
@@ -167,12 +171,14 @@ function sessionToIcs(session) {
     const speakers = session.speakers?.map(formatSpeaker);
     const topics = session.topics?.sort()?.join(', ') ?? '';
     const areasOfInterest = session.areasOfInterest?.sort()?.join(', ') ?? '';
+    const locationParts = [session.venue, session.room].filter((part) => typeof part === 'string' && part.length > 0);
+    const location = locationParts.join(' | ');
 
     const event = {
         start: toIcsDateTime(session.start),
         startInputType: "utc",
         end: toIcsDateTime(session.end),
-        location: `${session.venue} | ${session.room}`,
+        location,
         title: `${session.code} - ${session.title}`,
         description: [
             `${sessionType}\nCapacity: ${session.capacity}`,
@@ -220,7 +226,49 @@ function toTitleCase(str) {
         .join(' ');
 }
 
-function parseSession(session) {
+const SESSION_KINDS = Object.freeze({
+    CONFERENCE: 'conference',
+    PERSONAL: 'personal',
+    UNKNOWN: 'unknown'
+});
+
+function getSessionKind(session) {
+    if (!session || typeof session !== 'object') {
+        return SESSION_KINDS.UNKNOWN;
+    }
+
+    const hasCode = typeof session.code === 'string' && session.code.trim().length > 0;
+    const isCalendarItem = session.type === 'Calendar Item' || exists(session.calendarItemId);
+
+    if (isCalendarItem && !hasCode) {
+        return SESSION_KINDS.PERSONAL;
+    }
+
+    if (hasCode) {
+        return SESSION_KINDS.CONFERENCE;
+    }
+
+    return SESSION_KINDS.UNKNOWN;
+}
+
+function warnUnrecognizedSession(session) {
+    const title = typeof session?.title === 'string' && session.title.length > 0
+        ? session.title
+        : (session?.sessionID ?? 'Unknown session');
+    console.warn(`Skipping unrecognized session shape for "${title}".`);
+}
+
+function sanitizeSessionCode(rawCode, fallback = 'UNKNOWN') {
+    if (typeof rawCode === 'string' && rawCode.trim().length > 0) {
+        return rawCode.replace(/\s+/, '');
+    }
+    if (typeof fallback === 'string' && fallback.length > 0) {
+        return fallback;
+    }
+    return 'UNKNOWN';
+}
+
+function parseConferenceSession(session) {
     const toUnixTime = (d) => DateTime.fromFormat(d, 'yyyy/MM/dd HH:mm:ss', {zone: 'UTC'}).toUnixInteger();
     const sessionTime = session.times && session.times.length > 0 ? session.times[0] : {
         room: 'UNKNOWN | UNKNOWN',
@@ -234,12 +282,19 @@ function parseSession(session) {
         ? rawSessionType
         : 'Session';
     const sessionType = toTitleCase(pluralize.singular(sessionTypeSource));
+    const fallbackCode = exists(session.sessionID) ? String(session.sessionID) : undefined;
+    const code = sanitizeSessionCode(session.code, fallbackCode);
+
+    if (!sessionTime.utcStartTime || !sessionTime.utcEndTime) {
+        console.warn(`Skipping session "${code}" due to missing UTC start/end time.`);
+        return null;
+    }
 
     return {
-        code: session.code.replace(/\s+/, ''),
-        title: session.title,
+        code,
+        title: session.title ?? 'Untitled Session',
         sessionType,
-        abstract: session.abstract,
+        abstract: session.abstract ?? '',
         speakers: session.participants?.map((p) => ({
             name: p.fullName,
             company: p.companyName,
@@ -249,11 +304,63 @@ function parseSession(session) {
         areasOfInterest: getAttribute(session, 'AreaofInterest'),
         venue,
         room: room.join(' | '),
-        capacity: sessionTime.capacity,
+        capacity: sessionTime.capacity ?? 0,
         start: toUnixTime(sessionTime.utcStartTime),
         end: toUnixTime(sessionTime.utcEndTime),
 
     };
+}
+
+function parsePersonalTime(session) {
+    if (!session || typeof session !== 'object') {
+        return null;
+    }
+
+    const title = typeof session.title === 'string' && session.title.trim().length > 0
+        ? session.title.trim()
+        : 'Personal Time';
+    const venue = typeof session.location === 'string' ? session.location : '';
+    const startLocal = DateTime.fromFormat(`${session.date} ${session.time}`, 'yyyy-MM-dd HH:mm', {
+        zone: 'America/Los_Angeles'
+    });
+
+    if (!startLocal.isValid) {
+        console.warn(`Skipping personal session "${title}" due to invalid date/time.`);
+        return null;
+    }
+
+    const lengthMinutes = Number(session.length);
+    const durationMinutes = Number.isFinite(lengthMinutes) ? lengthMinutes : 0;
+    const endLocal = startLocal.plus({minutes: durationMinutes});
+
+    return {
+        code: 'PERS',
+        title,
+        sessionType: 'Personal Time',
+        abstract: session.abstract ?? '',
+        speakers: [],
+        topics: [],
+        areasOfInterest: [],
+        venue,
+        room: '',
+        capacity: 0,
+        start: startLocal.toUTC().toUnixInteger(),
+        end: endLocal.toUTC().toUnixInteger(),
+    };
+}
+
+function parseSession(session) {
+    const kind = getSessionKind(session);
+
+    switch (kind) {
+        case SESSION_KINDS.CONFERENCE:
+            return parseConferenceSession(session);
+        case SESSION_KINDS.PERSONAL:
+            return parsePersonalTime(session);
+        default:
+            warnUnrecognizedSession(session);
+            return null;
+    }
 }
 
 async function exportSessions(options, command) {
