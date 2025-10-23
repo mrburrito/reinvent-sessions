@@ -209,6 +209,10 @@ function getAttribute(session, attributeId) {
 }
 
 function toTitleCase(str) {
+    if (typeof str !== 'string' || str.trim().length === 0) {
+        return '';
+    }
+
     return str
         .toLowerCase()
         .split(' ')
@@ -225,11 +229,16 @@ function parseSession(session) {
         utcEndTime: '2025/11/30 13:00:00'
     };
     const [venue, ...room] = sessionTime.room?.split(' | ') ?? ['UNKNOWN', 'UNKNOWN'];
+    const rawSessionType = getAttribute(session, 'Type')[0];
+    const sessionTypeSource = typeof rawSessionType === 'string' && rawSessionType.trim().length > 0
+        ? rawSessionType
+        : 'Session';
+    const sessionType = toTitleCase(pluralize.singular(sessionTypeSource));
 
     return {
         code: session.code.replace(/\s+/, ''),
         title: session.title,
-        sessionType: toTitleCase(pluralize.singular(getAttribute(session, 'Type')[0])),
+        sessionType,
         abstract: session.abstract,
         speakers: session.participants?.map((p) => ({
             name: p.fullName,
