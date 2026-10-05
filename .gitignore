@@ -2,6 +2,7 @@ reinvent.cookie
 config.json
 sessions*.json
 catalog/
+sessions*/
 interests*.json
 *.ics
 *.csv
