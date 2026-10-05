@@ -1,6 +1,7 @@
 reinvent.cookie
 config.json
 sessions*.json
+catalog/
 interests*.json
 *.ics
 *.csv

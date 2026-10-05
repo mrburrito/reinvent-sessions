@@ -30,16 +30,99 @@ the https://catalog.awsevents.com/api/myData request.
 ${JSON.stringify(configTemplate, null, 2)}
 `.trimStart();
 
-// Function to fetch the agenda data
-const fetchAgenda = async (options) => {
-    // Load the configuration file
+const CATALOG_URL = 'https://catalog.awsevents.com/api/sessions';
+const CATALOG_PAGE_SIZE = 50;
+const CATALOG_WIDGET_ID = 'yloMDinvijFk6PtNtWambWamU6mPKiRf';
+const CATALOG_FILE = 'sessions.json';
+
+// Load the configuration file and show help if any required value is missing
+function loadConfig() {
     const {cookie, rfapiprofileid, rfauthtoken} = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
 
-    // Check if any required value is missing and show help
     if (!cookie || !rfapiprofileid || !rfauthtoken) {
         console.error(CONFIG_HELP);
         process.exit(1);
     }
+
+    return {cookie, rfapiprofileid, rfauthtoken};
+}
+
+// Download every page of the session catalog
+const fetchCatalog = async () => {
+    const {cookie, rfapiprofileid, rfauthtoken} = loadConfig();
+    const sessions = [];
+
+    try {
+        console.error("Downloading session catalog ...");
+        let total = Infinity;
+        for (let from = 0; from < total; from += CATALOG_PAGE_SIZE) {
+            const response = await axios.post(
+                CATALOG_URL,
+                `type=session&browserTimezone=America%2FNew_York&catalogDisplay=list&from=${from}&size=${CATALOG_PAGE_SIZE}`,
+                {
+                    headers: {
+                        'accept': '*/*',
+                        'accept-language': 'en-US,en;q=0.9',
+                        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'rfapiprofileid': rfapiprofileid,
+                        'rfauthtoken': rfauthtoken,
+                        'rfwidgetid': CATALOG_WIDGET_ID,
+                        'cookie': cookie,
+                        'origin': 'https://registration.awsevents.com',
+                        'referer': 'https://registration.awsevents.com/',
+                    }
+                }
+            );
+
+            // The first page nests its items under sectionList; later pages return them at the top level
+            const page = response.data;
+            const items = page.items ?? page.sectionList?.[0]?.items ?? [];
+            total = page.totalSearchItems ?? page.total ?? 0;
+            sessions.push(...items);
+
+            if (items.length === 0) {
+                break;
+            }
+        }
+        console.error(`Downloaded ${sessions.length} catalog sessions.`);
+        return {fetchedAt: new Date().toISOString(), sessions};
+    } catch (error) {
+        if (error.response) {
+            console.error(`Failed to fetch session catalog. HTTP Status: ${error.response.status}`);
+        } else {
+            console.error(`An error occurred: ${error.message}`);
+        }
+        process.exit(1);
+    }
+};
+
+// Return the cached catalog if present, otherwise download it and cache it in catalogDir
+const loadCatalog = async (catalogDir) => {
+    const cacheFile = `${catalogDir}/${CATALOG_FILE}`;
+
+    let catalog = null;
+    if (fs.existsSync(cacheFile)) {
+        try {
+            catalog = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+            console.error(`Using cached session catalog from ${cacheFile} (fetched ${catalog.fetchedAt}).`);
+        } catch (error) {
+            console.warn(`Ignoring unreadable session catalog ${cacheFile}: ${error.message}`);
+            catalog = null;
+        }
+    }
+
+    if (!Array.isArray(catalog?.sessions)) {
+        catalog = await fetchCatalog();
+        fs.writeFileSync(cacheFile, JSON.stringify(catalog));
+        console.error(`Saved session catalog to ${cacheFile}`);
+    }
+
+    return indexCatalog(catalog.sessions);
+};
+
+// Function to fetch the agenda data
+const fetchAgenda = async (options, catalog) => {
+    const {cookie, rfapiprofileid, rfauthtoken} = loadConfig();
 
     try {
         console.error("Retrieving agenda ...");
@@ -81,8 +164,8 @@ const fetchAgenda = async (options) => {
         }
 
         const agenda = {
-            reserved: transformSessions(response.data.mySchedule),
-            interests: transformSessions(response.data.sessionInterests),
+            reserved: transformSessions(response.data.mySchedule, catalog),
+            interests: transformSessions(response.data.sessionInterests, catalog),
         };
         console.error(`Downloaded agenda. Found ${agenda.reserved.length} Reservations and ${agenda.interests.length} Interests.`);
         return agenda;
@@ -116,8 +199,17 @@ function exists(obj) {
     return obj !== null && obj !== undefined;
 }
 
-function transformSessions(collection) {
-    return collection?.filter(exists)?.map(parseSession)?.filter(exists) ?? [];
+function transformSessions(collection, catalog) {
+    return collection?.filter(exists)?.map((session) => parseSession(session, catalog))?.filter(exists) ?? [];
+}
+
+// Catalog lookup key; codes can contain whitespace that the agenda and the catalog don't agree on
+function normalizeCode(code) {
+    return String(code ?? '').replace(/\s+/g, '');
+}
+
+function indexCatalog(sessions) {
+    return new Map(sessions.map((session) => [normalizeCode(session.code), session]));
 }
 
 function normalizeFilename(filename) {
@@ -268,7 +360,29 @@ function sanitizeSessionCode(rawCode, fallback = 'UNKNOWN') {
     return 'UNKNOWN';
 }
 
-function parseConferenceSession(session) {
+const DEFAULT_SESSION_TYPE = 'Session';
+
+// Agenda attributes first, then the catalog entry; the catalog is the only source for Type, Topic and Area of Interest
+function resolveAttribute(session, catalogEntry, attributeId) {
+    const fromAgenda = getAttribute(session, attributeId);
+    if (fromAgenda.length > 0) {
+        return fromAgenda;
+    }
+    return [...new Set(getAttribute(catalogEntry ?? {}, attributeId))];
+}
+
+function resolveSessionType(session, code, catalogEntry) {
+    const rawType = getAttribute(session, 'Type')[0] ?? catalogEntry?.type;
+    if (typeof rawType === 'string' && rawType.trim().length > 0) {
+        return toTitleCase(pluralize.singular(rawType));
+    }
+
+    const reason = catalogEntry ? 'has no type in the session catalog' : 'was not found in the session catalog';
+    console.warn(`Session "${code}" ${reason}; using type "${DEFAULT_SESSION_TYPE}".`);
+    return DEFAULT_SESSION_TYPE;
+}
+
+function parseConferenceSession(session, catalog) {
     const toUnixTime = (d) => DateTime.fromFormat(d, 'yyyy/MM/dd HH:mm:ss', {zone: 'UTC'}).toUnixInteger();
     const sessionTime = session.times && session.times.length > 0 ? session.times[0] : {
         room: 'UNKNOWN | UNKNOWN',
@@ -277,13 +391,10 @@ function parseConferenceSession(session) {
         utcEndTime: '2025/11/30 13:00:00'
     };
     const [venue, ...room] = sessionTime.room?.split(' | ') ?? ['UNKNOWN', 'UNKNOWN'];
-    const rawSessionType = getAttribute(session, 'Type')[0];
-    const sessionTypeSource = typeof rawSessionType === 'string' && rawSessionType.trim().length > 0
-        ? rawSessionType
-        : 'Session';
-    const sessionType = toTitleCase(pluralize.singular(sessionTypeSource));
     const fallbackCode = exists(session.sessionID) ? String(session.sessionID) : undefined;
     const code = sanitizeSessionCode(session.code, fallbackCode);
+    const catalogEntry = catalog?.get(normalizeCode(code));
+    const sessionType = resolveSessionType(session, code, catalogEntry);
 
     if (!sessionTime.utcStartTime || !sessionTime.utcEndTime) {
         console.warn(`Skipping session "${code}" due to missing UTC start/end time.`);
@@ -300,8 +411,8 @@ function parseConferenceSession(session) {
             company: p.companyName,
             jobTitle: p.jobTitle
         })),
-        topics: getAttribute(session, 'Topic'),
-        areasOfInterest: getAttribute(session, 'AreaofInterest'),
+        topics: resolveAttribute(session, catalogEntry, 'Topic'),
+        areasOfInterest: resolveAttribute(session, catalogEntry, 'AreaofInterest'),
         venue,
         room: room.join(' | '),
         capacity: sessionTime.capacity ?? 0,
@@ -349,12 +460,12 @@ function parsePersonalTime(session) {
     };
 }
 
-function parseSession(session) {
+function parseSession(session, catalog) {
     const kind = getSessionKind(session);
 
     switch (kind) {
         case SESSION_KINDS.CONFERENCE:
-            return parseConferenceSession(session);
+            return parseConferenceSession(session, catalog);
         case SESSION_KINDS.PERSONAL:
             return parsePersonalTime(session);
         default:
@@ -365,9 +476,12 @@ function parseSession(session) {
 
 async function exportSessions(options, command) {
     const outputDir = options.outputDir;
+    const catalogDir = options.catalog;
     fs.mkdirSync(`./${outputDir}`, {recursive: true});
+    fs.mkdirSync(`./${catalogDir}`, {recursive: true});
 
-    const {reserved, interests} = await fetchAgenda(options);
+    const catalog = await loadCatalog(catalogDir);
+    const {reserved, interests} = await fetchAgenda(options, catalog);
 
     if (!options.reservedOnly) {
         const events = {};
@@ -401,5 +515,6 @@ program
     .option('-o, --output-dir <dir>', 'the output directory', 'sessions')
     .option('-r, --reserved-only', 'Only output reserved sessions')
     .option('-a, --save-agenda', 'Save the raw agenda JSON to <dir>/agenda.json')
+    .option('-c, --catalog <dir>', 'the directory for the cached session catalog (sessions.json)', 'catalog')
     .action(exportSessions)
     .parse();

@@ -54,10 +54,15 @@ Steps to use:
       -o, --output-dir <dir>  the output directory (default: "sessions")
       -r, --reserved-only     Only output reserved sessions
       -a, --save-agenda       Save the raw agenda JSON to <dir>/agenda.json
+      -c, --catalog <dir>     the directory for the cached session catalog (sessions.json) (default: "catalog")
       -h, --help              display help for command
    ```
    
    ICS files will be written to the output directory (default `./sessions`).
+
+   The full session catalog (used for session types, topics and areas of interest) is downloaded once and
+   cached as `<catalog dir>/sessions.json` (default `./catalog/sessions.json`). Later runs reuse the cache.
+   To refresh it, delete that file.
 
    ```bash
    $ node sessions-to-ics.js -a
